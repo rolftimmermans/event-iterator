@@ -1,0 +1,37 @@
+{
+  "name": "event-iterator",
+  "version": "1.0.0",
+  "description": "Convert event emitters and event targets to ES async iterators",
+  "homepage": "https://github.com/rolftimmermans/event-iterator",
+  "license": "MIT",
+  "author": "Rolf Timmermans <rolftimmermans@voormedia.com>",
+  "repository": "rolftimmermans/event-iterator",
+  "keywords": [
+    "async",
+    "async-iterator",
+    "event-emitter",
+    "event-target",
+    "stream",
+    "await",
+    "for-await",
+    "esnext",
+    "node",
+    "browser"
+  ],
+  "main": "lib/node.js",
+  "browser": "lib/dom.js",
+  "devDependencies": {
+    "@types/chai": ">= 0",
+    "@types/jsdom": ">= 0",
+    "@types/mocha": ">= 0",
+    "@types/node": ">= 8.0",
+    "chai": ">= 4.1",
+    "jsdom": ">= 11.0",
+    "mocha": ">= 3.1",
+    "ts-node": ">= 3.3",
+    "typescript": ">= 2.5"
+  },
+  "scripts": {
+    "test": "mocha && rm -rf lib && tsc"
+  }
+}
