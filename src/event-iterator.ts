@@ -12,7 +12,7 @@ type AsyncResolver<T> = {
 
 type AsyncQueue<T> = Array<Promise<IteratorResult<T>>>
 
-export class EventIterator<T> {
+export class EventIterator<T> implements AsyncIterable<T> {
   private listen: ListenHandler<T>
   private remove?: RemoveHandler<T>
 

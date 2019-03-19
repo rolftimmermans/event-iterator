@@ -1,2 +1,5 @@
 /* Fall back from Symbol.asyncIterator to Symbol.iterator to a new symbol. */
-(Symbol as any).asyncIterator = Symbol.asyncIterator || Symbol.iterator || Symbol.for("Symbol.asyncIterator")
+const prop = Object.getOwnPropertyDescriptor((Symbol as any), "asyncIterator")
+if (!prop) {
+  (Symbol as any).asyncIterator = Symbol.iterator || Symbol.for("Symbol.asyncIterator")
+}

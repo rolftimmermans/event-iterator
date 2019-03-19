@@ -3,7 +3,7 @@ export declare type StopCallback<T> = () => void;
 export declare type FailCallback<T> = (err: Error) => void;
 export declare type ListenHandler<T> = (push: PushCallback<T>, stop: StopCallback<T>, fail: FailCallback<T>) => void;
 export declare type RemoveHandler<T> = (push: PushCallback<T>, stop: StopCallback<T>, fail: FailCallback<T>) => void;
-export declare class EventIterator<T> {
+export declare class EventIterator<T> implements AsyncIterable<T> {
     private listen;
     private remove?;
     constructor(listen: ListenHandler<T>, remove?: RemoveHandler<T>);

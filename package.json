@@ -1,6 +1,6 @@
 {
   "name": "event-iterator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Convert event emitters and event targets to ES async iterators",
   "homepage": "https://github.com/rolftimmermans/event-iterator",
   "license": "MIT",
@@ -29,7 +29,7 @@
     "jsdom": ">= 11.0",
     "mocha": ">= 3.1",
     "ts-node": ">= 3.3",
-    "typescript": ">= 2.5"
+    "typescript": ">= 3.3"
   },
   "scripts": {
     "test": "mocha && rm -rf lib && tsc"
