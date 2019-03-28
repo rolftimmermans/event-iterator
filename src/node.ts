@@ -1,7 +1,7 @@
 import {Readable} from "stream"
-import {EventIterator} from "./event-iterator"
+import {EventIterator, EventIteratorOptions} from "./event-iterator"
 
-export function stream(this: Readable) {
+export function stream(this: Readable, evOptions?: EventIteratorOptions) {
   return new EventIterator<Buffer>(
     (push, stop, fail) => {
       this.addListener("data", push)
@@ -21,6 +21,8 @@ export function stream(this: Readable) {
         (this as any).close()
       }
     },
+
+    evOptions,
   )
 }
 

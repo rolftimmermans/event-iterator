@@ -5,6 +5,10 @@ export type FailCallback<T> = (err: Error) => void
 export type ListenHandler<T> = (push: PushCallback<T>, stop: StopCallback<T>, fail: FailCallback<T>) => void
 export type RemoveHandler<T> = (push: PushCallback<T>, stop: StopCallback<T>, fail: FailCallback<T>) => void
 
+export interface EventIteratorOptions {
+  highWaterMark?: number
+}
+
 type AsyncResolver<T> = {
   resolve: (res: IteratorResult<T>) => void
   reject: (err: Error) => void
@@ -12,20 +16,15 @@ type AsyncResolver<T> = {
 
 type AsyncQueue<T> = Array<Promise<IteratorResult<T>>>
 
-type EventIteratorOptions = {
-  highWaterMark?: Number
-  highWaterWarning?: Boolean
-}
-
 export class EventIterator<T> implements AsyncIterable<T> {
   private listen: ListenHandler<T>
   private remove?: RemoveHandler<T>
   private options: EventIteratorOptions
 
-  constructor(listen: ListenHandler<T>, remove?: RemoveHandler<T>, options?: EventIteratorOptions) {
+  constructor(listen: ListenHandler<T>, remove?: RemoveHandler<T>, options: EventIteratorOptions = {}) {
     this.listen = listen
     this.remove = remove
-    this.options = options || {}
+    this.options = {highWaterMark: 100, ...options}
     Object.freeze(this)
   }
 
@@ -42,9 +41,9 @@ export class EventIterator<T> implements AsyncIterable<T> {
         placeholder = undefined
       } else {
         queue.push(Promise.resolve(resolution))
-        const {highWaterMark, highWaterWarning} = this.options
-        if (highWaterWarning && queue.length > (highWaterMark || 100) && console) {
-          console.warn("EventIterator queue filling up")
+        const {highWaterMark} = this.options
+        if (highWaterMark !== undefined && queue.length >= highWaterMark && console) {
+          console.warn(`EventIterator queue reached ${queue.length} items`)
         }
       }
     }

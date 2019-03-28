@@ -151,4 +151,66 @@ describe("event iterator", function() {
       }
     })
   })
+
+  describe("with high water mark", function() {
+    it("should warn", async function() {
+      const oldconsole = console
+      const log = global.console = new MemoryConsole
+
+      const it = new EventIterator(next => {next("val")}, undefined, {highWaterMark: 1})
+
+      await new Promise(setImmediate)
+      const result = await it[Symbol.asyncIterator]().next()
+
+      global.console = oldconsole
+
+      assert.equal(log.stderr.toString(), "EventIterator queue reached 1 items\n")
+    })
+  })
 })
+
+import {Console} from "console"
+import {Writable} from "stream"
+
+export class BufferStream extends Writable {
+  private readonly buffers: Buffer[] = []
+
+  _write(chunk: Buffer | string, encoding: string, callback: (err?: Error) => void) {
+    if (typeof chunk === "string") chunk = Buffer.from(chunk)
+    this.buffers.push(chunk)
+    callback()
+    return true
+  }
+
+  clear() {
+    this.buffers.length = 0
+  }
+
+  inspect() {
+    return Buffer.concat(this.buffers).toString()
+  }
+
+  toString() {
+    return Buffer.concat(this.buffers).toString()
+  }
+}
+
+export class MemoryConsole extends Console {
+  stdout: BufferStream
+  stderr: BufferStream
+
+  constructor() {
+    const stdout = new BufferStream
+    const stderr = new BufferStream
+    super(stdout, stderr)
+
+    this.stdout = stdout
+    this.stderr = stderr
+    Object.freeze(this)
+  }
+
+  clear() {
+    this.stdout.clear()
+    this.stderr.clear()
+  }
+}

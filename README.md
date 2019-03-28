@@ -112,8 +112,11 @@ type ListenHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => v
 
 type RemoveHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => void
 
+/* High water mark defaults to 100. Set to undefined to disable warnings. */
+interface EventIteratorOptions = {highWatermark?: number }
+
 class EventIterator<T> {
-    constructor(ListenHandler<T>, ?RemoveHandler<T>)
+    constructor(ListenHandler<T>, ?RemoveHandler<T>, ?EventIteratorOptions)
 
     [Symbol.asyncIterator](): AsyncIterator<T>
 }
@@ -282,6 +285,7 @@ integration code? Several reasons:
 
 Don't use this if you cannot reasonably consume all emitted events with your
 async iterator; the internal `EventIterator` queue will fill up indefinitely.
+A warning will be emitted when the queue reaches 100 items.
 
 One example is reading each line from a file with `stream()` and executing a
 HTTP request for every line. An HTTP request is typically much slower than
@@ -289,12 +293,23 @@ reading a file. The `EventEmitter` queue will fill itself as quickly as it
 receives data from the file stream. This will work fine, but only if everything
 fits in memory before the async iterator throws or returns.
 
+The limit can be changed or disabled by settings `highWaterMark` in the options
+of the  `EventIterator` constructor.
+
 A next version may support an optional API to pause/resume if the queue becomes
 too long.
 
+## Changes
+
+1.2.0:
+* Add options argument to constructor, allowing configuration of `highWaterMark` (@alanshaw).
+
+1.1.0:
+* First stable version.
+
 ## Licensed under MIT license
 
-Copyright (c) 2017 Rolf Timmermans
+Copyright (c) 2017-2019 Rolf Timmermans
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
