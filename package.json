@@ -32,6 +32,6 @@
     "typescript": ">= 3.3"
   },
   "scripts": {
-    "test": "mocha && rm -rf lib && tsc"
+    "test": "mocha test/*-test.ts && rm -rf lib && tsc"
   }
 }
