@@ -12,13 +12,20 @@ type AsyncResolver<T> = {
 
 type AsyncQueue<T> = Array<Promise<IteratorResult<T>>>
 
+type EventIteratorOptions = {
+  highWaterMark?: Number
+  highWaterWarning?: Boolean
+}
+
 export class EventIterator<T> implements AsyncIterable<T> {
   private listen: ListenHandler<T>
   private remove?: RemoveHandler<T>
+  private options: EventIteratorOptions
 
-  constructor(listen: ListenHandler<T>, remove?: RemoveHandler<T>) {
+  constructor(listen: ListenHandler<T>, remove?: RemoveHandler<T>, options?: EventIteratorOptions) {
     this.listen = listen
     this.remove = remove
+    this.options = options || {}
     Object.freeze(this)
   }
 
@@ -35,7 +42,8 @@ export class EventIterator<T> implements AsyncIterable<T> {
         placeholder = undefined
       } else {
         queue.push(Promise.resolve(resolution))
-        if (queue.length > 100 && console) {
+        const {highWaterMark, highWaterWarning} = this.options
+        if (highWaterWarning && queue.length > (highWaterMark || 100) && console) {
           console.warn("EventIterator queue filling up")
         }
       }
