@@ -20,7 +20,7 @@ import "core-js/es7/symbol" /* If necessary */
 import {subscribe} from "event-iterator"
 const element = document.querySelector("a.example")
 
-for await (const click of element::subscribe("click") {
+for await (const click of subscribe.call(element, "click")) {
   /* Asynchronously iterate over click events on the element. */
 }
 ```
@@ -32,7 +32,7 @@ import "core-js/es7/symbol" /* If necessary */
 import {stream} from "event-iterator"
 const file = require("fs").createReadStream("example-file")
 
-for await (const chunk of file::stream() {
+for await (const chunk of stream.call(file)) {
   /* Asynchronously iterate over buffer chunks read from file. */
 }
 ```
