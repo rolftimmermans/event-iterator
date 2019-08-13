@@ -15,7 +15,7 @@ As a bonus you get utility functions:
 
 For client-side browser events:
 
-``` js
+``` javascript
 import "core-js/es7/symbol" /* If necessary */
 import {subscribe} from "event-iterator"
 const element = document.querySelector("a.example")
@@ -27,7 +27,7 @@ for await (const click of subscribe.call(element, "click")) {
 
 For server-side Node.js events:
 
-``` js
+``` javascript
 import "core-js/es7/symbol" /* If necessary */
 import {stream} from "event-iterator"
 const file = require("fs").createReadStream("example-file")
@@ -43,7 +43,7 @@ Let's look at how `subscribe()` and `stream()` are implemented.
 
 For client-side browser events:
 
-``` js
+``` javascript
 import "core-js/es7/symbol" /* If necessary */
 import {EventIterator} from "event-iterator"
 
@@ -63,7 +63,7 @@ export function subscribe(event, options) {
 
 For server-side Node.js events:
 
-``` js
+``` javascript
 import "core-js/es7/symbol" /* If necessary */
 import {EventIterator} from "event-iterator"
 
@@ -140,7 +140,7 @@ want a function that will:
 
 A naive solution would look like this:
 
-``` js
+``` javascript
 function countLines(buffer) {
   const str = buffer.toString()
   if (str.match("\0")) throw new Error("Binary file!")
@@ -176,7 +176,7 @@ Unfortunately, this solution has some problems:
 
 So we improve our solution, and we arrive at something like this:
 
-``` js
+``` javascript
 function isLongTextFile(file) {
   let lines = 1
 
@@ -217,7 +217,7 @@ used by using TypeScript or Babel.
 
 A similar solution using async iterators could look like this:
 
-``` js
+``` javascript
 function async isLongTextFile(file) {
   let lines = 1
   for await (const chunk of stream.call(file)) { // or file::stream()
@@ -246,7 +246,7 @@ So how do you transform a readble stream into an async iterator? With an `EventI
 
 We can define the `stream` function above as:
 
-``` js
+``` javascript
 import {EventIterator} from "event-iterator"
 
 function stream() {
