@@ -53,7 +53,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
         remove(push, stop, fail)
       }
 
-      const resolution = {done: true} as IteratorResult<T>
+      const resolution = {value: undefined, done: true} as IteratorResult<T>
       if (placeholder) {
         placeholder.resolve(resolution)
         placeholder = undefined
@@ -97,7 +97,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
           remove(push, stop, fail)
         }
 
-        return Promise.resolve({done: true} as IteratorResult<T>)
+        return Promise.resolve({value: undefined, done: true} as IteratorResult<T>)
       },
     }
   }

@@ -32,7 +32,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
     })
 
     it("should await delayed end", async function() {
@@ -42,7 +42,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
     })
 
     it("should await immediate error", async function() {
@@ -91,7 +91,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().return!()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
       assert.equal(removed, 1)
     })
 
@@ -103,7 +103,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
       assert.equal(removed, 1)
     })
 
@@ -115,7 +115,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
       assert.equal(removed, 1)
     })
 
