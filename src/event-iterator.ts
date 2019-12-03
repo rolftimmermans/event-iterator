@@ -33,6 +33,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
     const queue: AsyncQueue<T> = []
     const listen = this.listen
     const remove = this.remove
+    let finaliser: IteratorResult<T>|null = null
 
     const push: PushCallback<T> = (value: T) => {
       const resolution = {value, done: false}
@@ -53,12 +54,12 @@ export class EventIterator<T> implements AsyncIterable<T> {
         remove(push, stop, fail)
       }
 
-      const resolution = {done: true} as IteratorResult<T>
+      finaliser = {value: undefined, done: true} as IteratorResult<T>
       if (placeholder) {
-        placeholder.resolve(resolution)
+        placeholder.resolve(finaliser)
         placeholder = undefined
       } else {
-        queue.push(Promise.resolve(resolution))
+        queue.push(Promise.resolve(finaliser))
       }
     }
 
@@ -83,7 +84,9 @@ export class EventIterator<T> implements AsyncIterable<T> {
 
     return {
       next(value?: any) {
-        if (queue.length) {
+        if (finaliser) {
+          return Promise.resolve(finaliser)
+        } else if (queue.length) {
           return queue.shift()!
         } else {
           return new Promise((resolve, reject) => {
@@ -97,7 +100,8 @@ export class EventIterator<T> implements AsyncIterable<T> {
           remove(push, stop, fail)
         }
 
-        return Promise.resolve({done: true} as IteratorResult<T>)
+        finaliser = {value: undefined, done: true} as IteratorResult<T>
+        return Promise.resolve(finaliser)
       },
     }
   }

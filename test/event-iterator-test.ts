@@ -32,7 +32,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
     })
 
     it("should await delayed end", async function() {
@@ -42,7 +42,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
     })
 
     it("should await immediate error", async function() {
@@ -72,6 +72,29 @@ describe("event iterator", function() {
         assert.instanceOf(err, Error)
       }
     })
+
+    it("does not yield new items if return has been called", async function() {
+      const it = new EventIterator(next => {
+        next("val")
+      })
+
+      await new Promise(setImmediate)
+      const iter = it[Symbol.asyncIterator]()
+      await iter.return?.()
+      assert.deepEqual(await iter.next(), {value: undefined, done: true})
+    })
+
+    it("does not queue for new items if return has been called", async function() {
+      const it = new EventIterator(next => {
+        next("val")
+      })
+
+      await new Promise(setImmediate)
+      const iter = it[Symbol.asyncIterator]()
+      assert.deepEqual(await iter.next(), {value: "val", done: false})
+      await iter.return?.()
+      assert.deepEqual(await iter.next(), {value: undefined, done: true})
+    })
   })
 
   describe("with listen and remove", function() {
@@ -91,7 +114,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().return!()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
       assert.equal(removed, 1)
     })
 
@@ -103,7 +126,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
       assert.equal(removed, 1)
     })
 
@@ -115,7 +138,7 @@ describe("event iterator", function() {
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
-      assert.deepEqual(result, {done: true})
+      assert.deepEqual(result, {value: undefined, done: true})
       assert.equal(removed, 1)
     })
 
