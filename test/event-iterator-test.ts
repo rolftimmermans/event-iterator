@@ -2,6 +2,7 @@ import "./symbol-polyfill"
 
 import {assert} from "chai"
 import {EventIterator} from "../src/event-iterator"
+import {EventEmitter} from 'events';
 
 describe("event iterator", function() {
   describe("with listen", function() {
@@ -172,6 +173,28 @@ describe("event iterator", function() {
         assert.instanceOf(err, Error)
         assert.equal(removed, 1)
       }
+    })
+
+    it("should buffer iterator calls when the queue is empty", async function() {
+      const event = new EventEmitter();
+      const it = new EventIterator((next, stop, fail) => {
+        event.on('data', next);
+      }, (next) => {
+        event.removeListener('data', next);
+      });
+
+      const iterator = it[Symbol.asyncIterator]();
+  
+      const requests = Promise.all([
+        iterator.next(),
+        iterator.next(),
+      ]);
+  
+      event.emit('data', 'a');
+      event.emit('data', 'b');
+  
+      const result = await requests;
+      assert.deepEqual(result, [{ value: 'a', done: false }, { value: 'b', done: false }]);
     })
   })
 

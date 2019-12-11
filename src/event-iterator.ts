@@ -29,22 +29,22 @@ export class EventIterator<T> implements AsyncIterable<T> {
   }
 
   [Symbol.asyncIterator](): AsyncIterator<T> {
-    let placeholder: AsyncResolver<T> | void
-    const queue: AsyncQueue<T> = []
+    let pullQueue: Array<AsyncResolver<T>> = []
+    const pushQueue: AsyncQueue<T> = []
     const listen = this.listen
     const remove = this.remove
     let finaliser: IteratorResult<T>|null = null
 
     const push: PushCallback<T> = (value: T) => {
       const resolution = {value, done: false}
-      if (placeholder) {
-        placeholder.resolve(resolution)
-        placeholder = undefined
+      if (pullQueue.length) {
+        const placeholder = pullQueue.shift();
+        if (placeholder) placeholder.resolve(resolution)
       } else {
-        queue.push(Promise.resolve(resolution))
+        pushQueue.push(Promise.resolve(resolution))
         const {highWaterMark} = this.options
-        if (highWaterMark !== undefined && queue.length >= highWaterMark && console) {
-          console.warn(`EventIterator queue reached ${queue.length} items`)
+        if (highWaterMark !== undefined && pushQueue.length >= highWaterMark && console) {
+          console.warn(`EventIterator queue reached ${pushQueue.length} items`)
         }
       }
     }
@@ -55,11 +55,13 @@ export class EventIterator<T> implements AsyncIterable<T> {
       }
 
       finaliser = {value: undefined, done: true} as IteratorResult<T>
-      if (placeholder) {
-        placeholder.resolve(finaliser)
-        placeholder = undefined
+      if (pullQueue.length) {
+        for (const placeholder of pullQueue) {
+          placeholder.resolve(finaliser);
+        }
+        pullQueue = []
       } else {
-        queue.push(Promise.resolve(finaliser))
+        pushQueue.push(Promise.resolve(finaliser))
       }
     }
 
@@ -68,15 +70,18 @@ export class EventIterator<T> implements AsyncIterable<T> {
         remove(push, stop, fail)
       }
 
-      if (placeholder) {
-        placeholder.reject(error)
-        placeholder = undefined
+      if (pullQueue.length) {
+        for (const placeholder of pullQueue) {
+          placeholder.reject(error);
+        }
+
+        pullQueue = []
       } else {
         const rejection = Promise.reject(error)
 
         /* Attach error handler to avoid leaking an unhandled promise rejection. */
         rejection.catch(() => {})
-        queue.push(rejection)
+        pushQueue.push(rejection)
       }
     }
 
@@ -86,11 +91,11 @@ export class EventIterator<T> implements AsyncIterable<T> {
       next(value?: any) {
         if (finaliser) {
           return Promise.resolve(finaliser)
-        } else if (queue.length) {
-          return queue.shift()!
+        } else if (pushQueue.length) {
+          return pushQueue.shift()!
         } else {
           return new Promise((resolve, reject) => {
-            placeholder = {resolve, reject}
+            pullQueue.push({ resolve, reject})
           })
         }
       },
