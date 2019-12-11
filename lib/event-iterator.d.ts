@@ -5,11 +5,14 @@ export declare type ListenHandler<T> = (push: PushCallback<T>, stop: StopCallbac
 export declare type RemoveHandler<T> = (push: PushCallback<T>, stop: StopCallback<T>, fail: FailCallback<T>) => void;
 export interface EventIteratorOptions {
     highWaterMark?: number;
+    onPause?: Function;
+    onResume?: Function;
 }
 export declare class EventIterator<T> implements AsyncIterable<T> {
     private listen;
     private remove?;
     private options;
+    private state;
     constructor(listen: ListenHandler<T>, remove?: RemoveHandler<T>, options?: EventIteratorOptions);
     [Symbol.asyncIterator](): AsyncIterator<T>;
 }

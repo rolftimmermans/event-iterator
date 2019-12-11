@@ -6,12 +6,18 @@ export type ListenHandler<T> = (push: PushCallback<T>, stop: StopCallback<T>, fa
 export type RemoveHandler<T> = (push: PushCallback<T>, stop: StopCallback<T>, fail: FailCallback<T>) => void
 
 export interface EventIteratorOptions {
-  highWaterMark?: number
+  highWaterMark?: number,
+  onPause?: Function,
+  onResume?: Function
 }
 
 type AsyncResolver<T> = {
   resolve: (res: IteratorResult<T>) => void
   reject: (err: Error) => void
+}
+
+type EventIteratorState = {
+  paused: Boolean
 }
 
 type AsyncQueue<T> = Array<Promise<IteratorResult<T>>>
@@ -20,12 +26,25 @@ export class EventIterator<T> implements AsyncIterable<T> {
   private listen: ListenHandler<T>
   private remove?: RemoveHandler<T>
   private options: EventIteratorOptions
+  private state: EventIteratorState
 
   constructor(listen: ListenHandler<T>, remove?: RemoveHandler<T>, options: EventIteratorOptions = {}) {
-    this.listen = listen
-    this.remove = remove
-    this.options = {highWaterMark: 100, ...options}
-    Object.freeze(this)
+    this.listen = listen;
+    this.remove = remove;
+    this.state = {
+      paused: false
+    };
+
+    if (options.onPause && !options.onResume) {
+      throw new Error('Cannot define onPause without an onResume');
+    }
+    
+    this.options = {
+      highWaterMark: 100,
+      ...options
+    };
+
+    Object.freeze(this);
   }
 
   [Symbol.asyncIterator](): AsyncIterator<T> {
@@ -33,18 +52,32 @@ export class EventIterator<T> implements AsyncIterable<T> {
     const pushQueue: AsyncQueue<T> = []
     const listen = this.listen
     const remove = this.remove
-    let finaliser: IteratorResult<T>|null = null
+    let finaliser: IteratorResult<T> | null = null;
+    
+    const {
+      highWaterMark,
+      onPause,
+      onResume
+    } = this.options
 
     const push: PushCallback<T> = (value: T) => {
-      const resolution = {value, done: false}
+      const resolution = { value, done: false }
       if (pullQueue.length) {
         const placeholder = pullQueue.shift();
         if (placeholder) placeholder.resolve(resolution)
       } else {
         pushQueue.push(Promise.resolve(resolution))
-        const {highWaterMark} = this.options
-        if (highWaterMark !== undefined && pushQueue.length >= highWaterMark && console) {
-          console.warn(`EventIterator queue reached ${pushQueue.length} items`)
+        if (highWaterMark !== undefined) {
+          if (pushQueue.length >= highWaterMark) {
+            if (onPause) {
+              if (!this.state.paused) {
+                onPause();
+                this.state.paused = true;
+              }
+            } else if (console) {
+              console.warn(`EventIterator queue reached ${pushQueue.length} items`)
+            }
+          }
         }
       }
     }
@@ -54,7 +87,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
         remove(push, stop, fail)
       }
 
-      finaliser = {value: undefined, done: true} as IteratorResult<T>
+      finaliser = { value: undefined, done: true } as IteratorResult<T>
       if (pullQueue.length) {
         for (const placeholder of pullQueue) {
           placeholder.resolve(finaliser);
@@ -80,7 +113,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
         const rejection = Promise.reject(error)
 
         /* Attach error handler to avoid leaking an unhandled promise rejection. */
-        rejection.catch(() => {})
+        rejection.catch(() => { })
         pushQueue.push(rejection)
       }
     }
@@ -88,14 +121,26 @@ export class EventIterator<T> implements AsyncIterable<T> {
     listen(push, stop, fail)
 
     return {
-      next(value?: any) {
+      next: (value?: any) => {
         if (finaliser) {
           return Promise.resolve(finaliser)
         } else if (pushQueue.length) {
-          return pushQueue.shift()!
+          const result = pushQueue.shift()!
+          
+          if (
+            highWaterMark !== undefined && 
+            onResume && 
+            this.state.paused && 
+            pushQueue.length < highWaterMark
+          ) {
+            onResume();
+            this.state.paused = false;
+          }
+          
+          return result;
         } else {
           return new Promise((resolve, reject) => {
-            pullQueue.push({ resolve, reject})
+            pullQueue.push({ resolve, reject })
           })
         }
       },
@@ -105,7 +150,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
           remove(push, stop, fail)
         }
 
-        finaliser = {value: undefined, done: true} as IteratorResult<T>
+        finaliser = { value: undefined, done: true } as IteratorResult<T>
         return Promise.resolve(finaliser)
       },
     }

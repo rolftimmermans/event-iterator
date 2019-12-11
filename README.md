@@ -86,6 +86,39 @@ export function stream() {
 }
 ```
 
+### Pausing Streams
+
+If you cannot reasonably consume all emitted events with your
+async iterator; the internal `EventIterator` queue can fill up indefinitely.
+
+A warning will be emitted when the queue reaches 100 items.
+
+
+However, if you are able to pause the event stream then use the `onPause`, and `onResume` callbacks
+
+The limit can be changed or disabled by settings `highWaterMark` in the options of the  `EventIterator` constructor.
+
+```js
+import { EventIterator } from "event-iterator"
+
+const file = require("fs").createReadStream("example-file")
+
+const eventIterator = new EventIterator(
+  push => {
+    file.on('data', push)
+  },
+  push => {
+    file.removeListener('data', push)
+  },
+  {
+    highWaterMark: 10,
+    onPause: () => file.pause(),
+    onResume: () => file.resume(),
+  }
+)
+```
+
+
 ## API specification
 
 Create a new event iterator with `new EventIterator(listen, remove)`. This
@@ -113,7 +146,11 @@ type ListenHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => v
 type RemoveHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => void
 
 /* High water mark defaults to 100. Set to undefined to disable warnings. */
-interface EventIteratorOptions = {highWatermark?: number }
+interface EventIteratorOptions = {
+  highWatermark?: number,
+  onPause?: Function,
+  onResume?: Function
+}
 
 class EventIterator<T> {
     constructor(ListenHandler<T>, ?RemoveHandler<T>, ?EventIteratorOptions)
@@ -280,24 +317,6 @@ integration code? Several reasons:
   * the event emitters as defined by Node.js have a different API than the event targets as defined in the DOM
   * the events that you are interested in may have different names depending on your use case
   * you may want to specify custom behaviour when the iterator throws or returns early
-
-## Caveats
-
-Don't use this if you cannot reasonably consume all emitted events with your
-async iterator; the internal `EventIterator` queue will fill up indefinitely.
-A warning will be emitted when the queue reaches 100 items.
-
-One example is reading each line from a file with `stream()` and executing a
-HTTP request for every line. An HTTP request is typically much slower than
-reading a file. The `EventEmitter` queue will fill itself as quickly as it
-receives data from the file stream. This will work fine, but only if everything
-fits in memory before the async iterator throws or returns.
-
-The limit can be changed or disabled by settings `highWaterMark` in the options
-of the  `EventIterator` constructor.
-
-A next version may support an optional API to pause/resume if the queue becomes
-too long.
 
 ## Changes
 

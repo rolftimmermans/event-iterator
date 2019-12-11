@@ -1,9 +1,9 @@
 import "./symbol-polyfill"
 
-import {assert} from "chai"
-import {EventIterator} from "../src/event-iterator"
-import {EventEmitter} from 'events';
-
+import { assert } from "chai"
+import { EventIterator } from "../src/event-iterator"
+import { EventEmitter } from 'events'
+import { spy } from 'sinon'
 describe("event iterator", function() {
   describe("with listen", function() {
     it("should await immediate value", async function() {
@@ -211,6 +211,44 @@ describe("event iterator", function() {
       global.console = oldconsole
 
       assert.equal(log.stderr.toString(), "EventIterator queue reached 1 items\n")
+    })
+
+    it("should throw if onPause is defined without onResume", async function () {
+      const pauseSpy = spy();
+      assert.throws(() => {
+        const it = new EventIterator(() => {}, undefined, {
+          onPause: pauseSpy
+        })
+      }, Error, 'Cannot define onPause without an onResume')
+    })
+
+    it("should pause once the high watermark is crossed and resume once it is cleared", async function () {
+      const pauseSpy = spy();
+      const resumeSpy = spy();
+      const event = new EventEmitter();
+      const it = new EventIterator(next => {
+        event.on("data", next)
+      }, undefined, {
+        highWaterMark: 1,
+        onPause: pauseSpy,
+        onResume: resumeSpy
+      })
+
+      const iter = it[Symbol.asyncIterator]();
+
+      assert.equal(pauseSpy.called, false);
+      assert.equal(resumeSpy.called, false);
+
+      event.emit('data', 'a');
+
+      assert.equal(pauseSpy.called, true);
+      assert.equal(resumeSpy.called, false);
+
+      // Consume the record in the queue to to trigger onResume
+      await iter.next();
+
+      assert.equal(resumeSpy.called, true);
+
     })
   })
 })

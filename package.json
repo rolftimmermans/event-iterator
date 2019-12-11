@@ -25,11 +25,13 @@
     "@types/jsdom": ">= 0",
     "@types/mocha": ">= 0",
     "@types/node": ">= 8.0",
+    "@types/sinon": ">= 7.5.1",
     "chai": ">= 4.1",
     "jsdom": ">= 11.0",
     "mocha": ">= 3.1",
     "ts-node": ">= 3.3",
-    "typescript": ">= 3.3"
+    "typescript": ">= 3.3",
+    "sinon": ">= 7.5.0"
   },
   "scripts": {
     "test": "mocha test/*-test.ts && rm -rf lib && tsc"
