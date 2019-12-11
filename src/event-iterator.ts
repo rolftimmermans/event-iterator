@@ -122,9 +122,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
 
     return {
       next: (value?: any) => {
-        if (finaliser) {
-          return Promise.resolve(finaliser)
-        } else if (pushQueue.length) {
+        if (pushQueue.length) {
           const result = pushQueue.shift()!
           
           if (
@@ -138,6 +136,8 @@ export class EventIterator<T> implements AsyncIterable<T> {
           }
           
           return result;
+        } else if (finaliser) {
+          return Promise.resolve(finaliser)
         } else {
           return new Promise((resolve, reject) => {
             pullQueue.push({ resolve, reject })
@@ -150,6 +150,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
           remove(push, stop, fail)
         }
 
+        pushQueue.splice(0, pushQueue.length);
         finaliser = { value: undefined, done: true } as IteratorResult<T>
         return Promise.resolve(finaliser)
       },

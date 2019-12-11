@@ -251,6 +251,41 @@ describe("event iterator", function() {
 
     })
   })
+
+  describe('when event emitter closes', () => {
+    it('should broadcast iterate over all events until the stream is closed', async () => {
+      const event = new EventEmitter();
+      const it = new EventIterator((next, stop, fail) => {
+        event.on('data', next);
+        event.on('close', stop);
+      }, (next, stop) => {
+        event.removeListener('data', next);
+        event.removeListener('close', next);
+      });
+
+      const iterator = it[Symbol.asyncIterator]();
+  
+      event.emit('data', 'a');
+      event.emit('data', 'b');
+      event.emit('close');
+      event.emit('data', 'c');
+      
+      const requests = Promise.all([
+        iterator.next(),
+        iterator.next(),
+        iterator.next(),
+        iterator.next(),
+      ]);
+
+      const result = await requests;
+      assert.deepEqual(result, [
+        { value: 'a', done: false },
+        { value: 'b', done: false },
+        { value: undefined, done: true },
+        { value: undefined, done: true },
+      ]);
+    })
+  })
 })
 
 import {Console} from "console"
