@@ -2,14 +2,10 @@ import {EventIterator, EventIteratorOptions} from "./event-iterator"
 
 export function subscribe(this: EventTarget, event: string, options?: AddEventListenerOptions, evOptions?: EventIteratorOptions) {
   return new EventIterator<Event>(
-    (push) => {
+    ({push}) => {
       this.addEventListener(event, push, options)
+      return () => this.removeEventListener(event, push, options)
     },
-
-    (push) => {
-      this.removeEventListener(event, push, options)
-    },
-
     evOptions,
   )
 }

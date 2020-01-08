@@ -50,13 +50,10 @@ import {EventIterator} from "event-iterator"
 export function subscribe(event, options) {
   /* "this" refers to a DOM event target. */
   return new EventIterator(
-    push => {
+    ({ push }) => {
       this.addEventListener(event, push, options)
-    },
-
-    push => {
-      this.removeEventListener(event, push, options)
-    },
+      return () => this.removeEventListener(event, push, options)
+    }
   )
 }
 ```
@@ -70,25 +67,24 @@ import {EventIterator} from "event-iterator"
 export function stream() {
   /* "this" refers to a Node.js readable stream. */
   return new EventIterator(
-    (push, stop, fail) => {
+    ({ push, stop, fail }) => {
       this.addListener("data", push)
       this.addListener("close", stop)
       this.addListener("error", fail)
-    },
-
-    (push, stop, fail) => {
-      this.removeListener("data", push)
-      this.removeListener("close", stop)
-      this.removeListener("error", fail)
-      this.destroy()
-    },
+      return () => {
+        this.removeListener("data", push)
+        this.removeListener("close", stop)
+        this.removeListener("error", fail)
+        this.destroy()
+      }
+    }
   )
 }
 ```
 
 ## API specification
 
-Create a new event iterator with `new EventIterator(listen, remove)`. This
+Create a new event iterator with `new EventIterator(listen)`. This
 object implements the async iterator protocol by having a `Symbol.asyncIterator`
 property.
 
@@ -97,26 +93,30 @@ Note: you must set up any `Symbol.asyncIterator` polyfills **before** importing
 
 The `listen` handler is called every time a new iterator is created to set up
 your event listeners. The optional `remove` handler is called when the event
-listeners need to be removed. The arguments to both the `listen` and `remove`
-handler are identical, making it easy to call `addListener`/`removeListener` or
-similar functions.
+listeners need to be removed. The `listen` handler returns the `remove`
+handler, making it easy to call `addListener`/`removeListener` or similar
+functions.
 
 Type definitions:
 
 ``` typescript
-type PushCallback<T> = (T) => void
-type StopCallback<T> = () => void
-type FailCallback<T> = (Error) => void
+export type PushCallback<T> = (res: T) => void
+export type StopCallback<T> = () => void
+export type FailCallback<T> = (err: Error) => void
 
-type ListenHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => void
-
-type RemoveHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => void
+export interface EventQueue<T> {
+  push: PushCallback<T>,
+  stop: StopCallback<T>,
+  fail: FailCallback<T>
+}
+export type RemoveHandler = () => void
+export type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler
 
 /* High water mark defaults to 100. Set to undefined to disable warnings. */
 interface EventIteratorOptions = {highWatermark?: number }
 
 class EventIterator<T> {
-    constructor(ListenHandler<T>, ?RemoveHandler<T>, ?EventIteratorOptions)
+    constructor(ListenHandler<T>, ?EventIteratorOptions)
 
     [Symbol.asyncIterator](): AsyncIterator<T>
 }
@@ -251,18 +251,17 @@ import {EventIterator} from "event-iterator"
 
 function stream() {
   return new EventIterator(
-    (push, stop, fail) => {
+    ({ push, stop, fail }) => {
       this.addListener("data", push)
       this.addListener("end", stop)
       this.addListener("error", fail)
-    },
-
-    (push, stop, fail) => {
-      this.removeListener("data", push)
-      this.removeListener("end", stop)
-      this.removeListener("error", fail)
-      this.destroy()
-    },
+      return () => {
+        this.removeListener("data", push)
+        this.removeListener("end", stop)
+        this.removeListener("error", fail)
+        this.destroy()
+      }
+    }
   )
 }
 ```
