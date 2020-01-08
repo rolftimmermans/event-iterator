@@ -298,14 +298,6 @@ of the  `EventIterator` constructor.
 A next version may support an optional API to pause/resume if the queue becomes
 too long.
 
-## Changes
-
-1.2.0:
-* Add options argument to constructor, allowing configuration of `highWaterMark` (@alanshaw).
-
-1.1.0:
-* First stable version.
-
 ## Licensed under MIT license
 
 Copyright (c) 2017-2019 Rolf Timmermans
