@@ -1,25 +1,25 @@
 export type PushCallback<T> = (res: T) => void
 export type StopCallback<T> = () => void
 export type FailCallback<T> = (err: Error) => void
-export type OnPauseCallback<T> = () => void
-export type OnResumeCallback<T> = () => void
-export type OnPauseSetter<T> = (fn: OnPauseCallback<T>) => void
-export type OnResumeSetter<T> = (fn: OnResumeCallback<T>) => void
+export type OnDrainCallback<T> = () => void
+export type OnFillCallback<T> = () => void
+export type OnDrainSetter<T> = (fn: OnDrainCallback<T>) => void
+export type OnFillSetter<T> = (fn: OnFillCallback<T>) => void
 
 export interface EventQueue<T> {
   push: PushCallback<T>,
   stop: StopCallback<T>,
   fail: FailCallback<T>,
-  onPause: OnPauseSetter<T>,
-  onResume: OnResumeSetter<T>,
+  onDrain: OnDrainSetter<T>,
+  onFill: OnFillSetter<T>,
 }
 export type RemoveHandler = () => void
 export type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler
 
 export interface EventIteratorOptions {
   highWaterMark?: number,
-  onPause?: Function,
-  onResume?: Function
+  onDrain?: Function,
+  onFill?: Function
 }
 
 type AsyncResolver<T> = {
@@ -40,8 +40,8 @@ export class EventIterator<T> implements AsyncIterable<T> {
   constructor(listen: ListenHandler<T>, options: EventIteratorOptions = {}) {
     this.listen = listen;
 
-    if (options.onPause && !options.onResume) {
-      throw new Error('Cannot define onPause without an onResume');
+    if (options.onDrain && !options.onFill) {
+      throw new Error('Cannot define onDrain without an onFill');
     }
 
     this.options = {
@@ -57,8 +57,8 @@ export class EventIterator<T> implements AsyncIterable<T> {
     const pushQueue: AsyncQueue<T> = []
     const listen = this.listen
     let remove: RemoveHandler = () => {}
-    let onPause: OnPauseCallback<T>|null = null
-    let onResume: OnResumeCallback<T>|null = null
+    let onDrain: OnDrainCallback<T>|null = null
+    let onFill: OnFillCallback<T>|null = null
     let finaliser: IteratorResult<T>|null = null
     let {highWaterMark} = this.options
     let paused = false
@@ -72,10 +72,10 @@ export class EventIterator<T> implements AsyncIterable<T> {
         pushQueue.push(Promise.resolve(resolution))
         if (highWaterMark !== undefined) {
           if (pushQueue.length >= highWaterMark) {
-            if (!onPause && console) {
+            if (!onDrain && console) {
               console.warn(`EventIterator queue reached ${pushQueue.length} items`)
-            } else if (onPause && !paused) {
-              onPause();
+            } else if (onDrain && !paused) {
+              onDrain();
               paused = true;
             }
           }
@@ -123,8 +123,8 @@ export class EventIterator<T> implements AsyncIterable<T> {
       push,
       stop,
       fail,
-      onPause: (fn) => { onPause = fn },
-      onResume: (fn) => { onResume = fn },
+      onDrain: (fn) => { onDrain = fn },
+      onFill: (fn) => { onFill = fn },
     }) || remove
 
     return {
@@ -136,11 +136,11 @@ export class EventIterator<T> implements AsyncIterable<T> {
 
           if (
             highWaterMark !== undefined &&
-            onResume &&
+            onFill &&
             paused &&
             pushQueue.length < highWaterMark
           ) {
-            onResume();
+            onFill();
             paused = false;
           }
 

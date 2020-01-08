@@ -223,9 +223,9 @@ describe("event iterator", function() {
       const pauseSpy = spy();
       const resumeSpy = spy();
       const event = new EventEmitter();
-      const it = new EventIterator(({push, onPause, onResume}) => {
-        onPause(pauseSpy)
-        onResume(resumeSpy)
+      const it = new EventIterator(({push, onDrain, onFill}) => {
+        onDrain(pauseSpy)
+        onFill(resumeSpy)
         event.on("data", push)
       }, { highWaterMark: 1 })
 
@@ -239,7 +239,7 @@ describe("event iterator", function() {
       assert.equal(pauseSpy.called, true);
       assert.equal(resumeSpy.called, false);
 
-      // Consume the record in the queue to to trigger onResume
+      // Consume the record in the queue to to trigger onFill
       await iter.next();
 
       assert.equal(resumeSpy.called, true);
