@@ -50,13 +50,10 @@ import {EventIterator} from "event-iterator"
 export function subscribe(event, options) {
   /* "this" refers to a DOM event target. */
   return new EventIterator(
-    push => {
+    ({ push }) => {
       this.addEventListener(event, push, options)
-    },
-
-    push => {
-      this.removeEventListener(event, push, options)
-    },
+      return () => this.removeEventListener(event, push, options)
+    }
   )
 }
 ```
@@ -70,18 +67,17 @@ import {EventIterator} from "event-iterator"
 export function stream() {
   /* "this" refers to a Node.js readable stream. */
   return new EventIterator(
-    (push, stop, fail) => {
+    ({ push, stop, fail }) => {
       this.addListener("data", push)
       this.addListener("close", stop)
       this.addListener("error", fail)
-    },
-
-    (push, stop, fail) => {
-      this.removeListener("data", push)
-      this.removeListener("close", stop)
-      this.removeListener("error", fail)
-      this.destroy()
-    },
+      return () => {
+        this.removeListener("data", push)
+        this.removeListener("close", stop)
+        this.removeListener("error", fail)
+        this.destroy()
+      }
+    }
   )
 }
 ```
@@ -121,7 +117,7 @@ const eventIterator = new EventIterator(
 
 ## API specification
 
-Create a new event iterator with `new EventIterator(listen, remove)`. This
+Create a new event iterator with `new EventIterator(listen)`. This
 object implements the async iterator protocol by having a `Symbol.asyncIterator`
 property.
 
@@ -130,20 +126,24 @@ Note: you must set up any `Symbol.asyncIterator` polyfills **before** importing
 
 The `listen` handler is called every time a new iterator is created to set up
 your event listeners. The optional `remove` handler is called when the event
-listeners need to be removed. The arguments to both the `listen` and `remove`
-handler are identical, making it easy to call `addListener`/`removeListener` or
-similar functions.
+listeners need to be removed. The `listen` handler returns the `remove`
+handler, making it easy to call `addListener`/`removeListener` or similar
+functions.
 
 Type definitions:
 
 ``` typescript
-type PushCallback<T> = (T) => void
-type StopCallback<T> = () => void
-type FailCallback<T> = (Error) => void
+export type PushCallback<T> = (res: T) => void
+export type StopCallback<T> = () => void
+export type FailCallback<T> = (err: Error) => void
 
-type ListenHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => void
-
-type RemoveHandler<T> = (PushCallback<T>, StopCallback<T>, FailCallback<T>) => void
+export interface EventQueue<T> {
+  push: PushCallback<T>,
+  stop: StopCallback<T>,
+  fail: FailCallback<T>
+}
+export type RemoveHandler = () => void
+export type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler
 
 /* High water mark defaults to 100. Set to undefined to disable warnings. */
 interface EventIteratorOptions = {
@@ -153,7 +153,7 @@ interface EventIteratorOptions = {
 }
 
 class EventIterator<T> {
-    constructor(ListenHandler<T>, ?RemoveHandler<T>, ?EventIteratorOptions)
+    constructor(ListenHandler<T>, ?EventIteratorOptions)
 
     [Symbol.asyncIterator](): AsyncIterator<T>
 }
@@ -288,18 +288,17 @@ import {EventIterator} from "event-iterator"
 
 function stream() {
   return new EventIterator(
-    (push, stop, fail) => {
+    ({ push, stop, fail }) => {
       this.addListener("data", push)
       this.addListener("end", stop)
       this.addListener("error", fail)
-    },
-
-    (push, stop, fail) => {
-      this.removeListener("data", push)
-      this.removeListener("end", stop)
-      this.removeListener("error", fail)
-      this.destroy()
-    },
+      return () => {
+        this.removeListener("data", push)
+        this.removeListener("end", stop)
+        this.removeListener("error", fail)
+        this.destroy()
+      }
+    }
   )
 }
 ```
@@ -318,13 +317,23 @@ integration code? Several reasons:
   * the events that you are interested in may have different names depending on your use case
   * you may want to specify custom behaviour when the iterator throws or returns early
 
-## Changes
+## Caveats
 
-1.2.0:
-* Add options argument to constructor, allowing configuration of `highWaterMark` (@alanshaw).
+Don't use this if you cannot reasonably consume all emitted events with your
+async iterator; the internal `EventIterator` queue will fill up indefinitely.
+A warning will be emitted when the queue reaches 100 items.
 
-1.1.0:
-* First stable version.
+One example is reading each line from a file with `stream()` and executing a
+HTTP request for every line. An HTTP request is typically much slower than
+reading a file. The `EventEmitter` queue will fill itself as quickly as it
+receives data from the file stream. This will work fine, but only if everything
+fits in memory before the async iterator throws or returns.
+
+The limit can be changed or disabled by settings `highWaterMark` in the options
+of the  `EventIterator` constructor.
+
+A next version may support an optional API to pause/resume if the queue becomes
+too long.
 
 ## Licensed under MIT license
 

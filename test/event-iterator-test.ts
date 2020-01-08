@@ -7,8 +7,8 @@ import { spy } from 'sinon'
 describe("event iterator", function() {
   describe("with listen", function() {
     it("should await immediate value", async function() {
-      const it = new EventIterator(next => {
-        next("val")
+      const it = new EventIterator(({ push }) => {
+        push("val")
       })
 
       await new Promise(setImmediate)
@@ -17,8 +17,8 @@ describe("event iterator", function() {
     })
 
     it("should await delayed value", async function() {
-      const it = new EventIterator(next => {
-        setImmediate(() => next("val"))
+      const it = new EventIterator(({ push }) => {
+        setImmediate(() => push("val"))
       })
 
       await new Promise(setImmediate)
@@ -27,7 +27,7 @@ describe("event iterator", function() {
     })
 
     it("should await immediate end", async function() {
-      const it = new EventIterator((next, stop) => {
+      const it = new EventIterator(({ push, stop }) => {
         stop()
       })
 
@@ -37,7 +37,7 @@ describe("event iterator", function() {
     })
 
     it("should await delayed end", async function() {
-      const it = new EventIterator((next, stop) => {
+      const it = new EventIterator(({ push, stop }) => {
         setImmediate(stop)
       })
 
@@ -47,7 +47,7 @@ describe("event iterator", function() {
     })
 
     it("should await immediate error", async function() {
-      const it = new EventIterator((next, stop, fail) => {
+      const it = new EventIterator(({ push, stop, fail }) => {
         fail(new Error)
       })
 
@@ -61,7 +61,7 @@ describe("event iterator", function() {
     })
 
     it("should await delayed error", async function() {
-      const it = new EventIterator((next, stop, fail) => {
+      const it = new EventIterator(({ push, stop, fail }) => {
         setImmediate(() => fail(new Error))
       })
 
@@ -75,8 +75,8 @@ describe("event iterator", function() {
     })
 
     it("does not yield new items if return has been called", async function() {
-      const it = new EventIterator(next => {
-        next("val")
+      const it = new EventIterator(({ push }) => {
+        push("val")
       })
 
       await new Promise(setImmediate)
@@ -86,8 +86,8 @@ describe("event iterator", function() {
     })
 
     it("does not queue for new items if return has been called", async function() {
-      const it = new EventIterator(next => {
-        next("val")
+      const it = new EventIterator(({ push }) => {
+        push("val")
       })
 
       await new Promise(setImmediate)
@@ -99,19 +99,22 @@ describe("event iterator", function() {
   })
 
   describe("with listen and remove", function() {
-    it("should call handlers with identical arguments", async function() {
-      let a, b
+    it("should call remove handler with no arguments", async function() {
+      let removeArgs = null
       const it = new EventIterator(
-        (...args: any[]) => a = args,
-        (...args: any[]) => b = args,
+        ({ stop }) => {
+          stop()
+          return (...args: any[]) => removeArgs = args
+        },
       )
-
-      assert.equal(a, b)
+      await new Promise(setImmediate)
+      const result = await it[Symbol.asyncIterator]().return!()
+      assert.deepStrictEqual(removeArgs, [])
     })
 
     it("should call remove handler on return", async function() {
       let removed = 0
-      const it = new EventIterator(() => {}, () => removed += 1)
+      const it = new EventIterator(() => () => removed += 1)
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().return!()
@@ -121,9 +124,10 @@ describe("event iterator", function() {
 
     it("should call remove handler on immediate end", async function() {
       let removed = 0
-      const it = new EventIterator((next, stop) => {
+      const it = new EventIterator(({ stop }) => {
         stop()
-      }, () => removed += 1)
+        return () => removed += 1
+      })
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
@@ -133,9 +137,10 @@ describe("event iterator", function() {
 
     it("should call remove handler on delayed end", async function() {
       let removed = 0
-      const it = new EventIterator((next, stop) => {
+      const it = new EventIterator(({ stop }) => {
         setImmediate(stop)
-      }, () => removed += 1)
+        return () => removed += 1
+      })
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
@@ -145,9 +150,10 @@ describe("event iterator", function() {
 
     it("should call remove handler on immediate error", async function() {
       let removed = 0
-      const it = new EventIterator((next, stop, fail) => {
+      const it = new EventIterator(({ fail }) => {
         fail(new Error)
-      }, () => removed += 1)
+        return () => removed += 1
+      })
 
       try {
         await new Promise(setImmediate)
@@ -161,9 +167,10 @@ describe("event iterator", function() {
 
     it("should call remove handler on delayed error", async function() {
       let removed = 0
-      const it = new EventIterator((next, stop, fail) => {
+      const it = new EventIterator(({ fail }) => {
         setImmediate(() => fail(new Error))
-      }, () => removed += 1)
+        return () => removed += 1
+      })
 
       try {
         await new Promise(setImmediate)
@@ -177,24 +184,23 @@ describe("event iterator", function() {
 
     it("should buffer iterator calls when the queue is empty", async function() {
       const event = new EventEmitter();
-      const it = new EventIterator((next, stop, fail) => {
-        event.on('data', next);
-      }, (next) => {
-        event.removeListener('data', next);
-      });
+      const it = new EventIterator(({ push, stop, fail }) => {
+        event.on('data', push);
+        return () => event.removeListener('data', push)
+      })
 
-      const iterator = it[Symbol.asyncIterator]();
-  
+      const iterator = it[Symbol.asyncIterator]()
+
       const requests = Promise.all([
         iterator.next(),
         iterator.next(),
-      ]);
-  
-      event.emit('data', 'a');
-      event.emit('data', 'b');
-  
-      const result = await requests;
-      assert.deepEqual(result, [{ value: 'a', done: false }, { value: 'b', done: false }]);
+      ])
+
+      event.emit('data', 'a')
+      event.emit('data', 'b')
+
+      const result = await requests
+      assert.deepEqual(result, [{ value: 'a', done: false }, { value: 'b', done: false }])
     })
   })
 
@@ -203,7 +209,7 @@ describe("event iterator", function() {
       const oldconsole = console
       const log = global.console = new MemoryConsole
 
-      const it = new EventIterator(next => {next("val")}, undefined, {highWaterMark: 1})
+      const it = new EventIterator(({ push }) => {push("val")}, {highWaterMark: 1})
 
       await new Promise(setImmediate)
       const result = await it[Symbol.asyncIterator]().next()
@@ -213,26 +219,15 @@ describe("event iterator", function() {
       assert.equal(log.stderr.toString(), "EventIterator queue reached 1 items\n")
     })
 
-    it("should throw if onPause is defined without onResume", async function () {
-      const pauseSpy = spy();
-      assert.throws(() => {
-        const it = new EventIterator(() => {}, undefined, {
-          onPause: pauseSpy
-        })
-      }, Error, 'Cannot define onPause without an onResume')
-    })
-
     it("should pause once the high watermark is crossed and resume once it is cleared", async function () {
       const pauseSpy = spy();
       const resumeSpy = spy();
       const event = new EventEmitter();
-      const it = new EventIterator(next => {
-        event.on("data", next)
-      }, undefined, {
-        highWaterMark: 1,
-        onPause: pauseSpy,
-        onResume: resumeSpy
-      })
+      const it = new EventIterator(({push, onPause, onResume}) => {
+        onPause(pauseSpy)
+        onResume(resumeSpy)
+        event.on("data", push)
+      }, { highWaterMark: 1 })
 
       const iter = it[Symbol.asyncIterator]();
 
