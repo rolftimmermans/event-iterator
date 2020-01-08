@@ -90,27 +90,21 @@ async iterator; the internal `EventIterator` queue can fill up indefinitely.
 A warning will be emitted when the queue reaches 100 items.
 
 
-However, if you are able to pause the event stream then use the `onPause`, and `onResume` callbacks
+However, if you are able to pause the event stream then use the `onDrain`, and `onFill` callbacks
 
 The limit can be changed or disabled by settings `highWaterMark` in the options of the  `EventIterator` constructor.
 
 ```js
 import { EventIterator } from "event-iterator"
-
-const file = require("fs").createReadStream("example-file")
-
 const eventIterator = new EventIterator(
-  push => {
+  ({push, onDrain, onFill}) => {
+    const file = require("fs").createReadStream("example-file")
     file.on('data', push)
+    onDrain(() => file.pause())
+    onFill(() => file.resume())
+    return () => file.removeListener('data', push)
   },
-  push => {
-    file.removeListener('data', push)
-  },
-  {
-    highWaterMark: 10,
-    onPause: () => file.pause(),
-    onResume: () => file.resume(),
-  }
+  { highWaterMark: 10 }
 )
 ```
 
