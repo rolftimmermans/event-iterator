@@ -216,7 +216,7 @@ describe("event iterator", function () {
       )
 
       await new Promise(setImmediate)
-      const result = await it[Symbol.asyncIterator]().next()
+      await it[Symbol.asyncIterator]().next()
 
       global.console = oldconsole
 
@@ -226,31 +226,34 @@ describe("event iterator", function () {
       )
     })
 
-    it("should pause once the high watermark is crossed and resume once it is cleared", async function () {
-      const pauseSpy = spy();
-      const resumeSpy = spy();
-      const event = new EventEmitter();
-      const it = new EventIterator(({push, onDrain, onFill}) => {
-        onDrain(pauseSpy)
-        onFill(resumeSpy)
-        event.on("data", push)
-      }, { highWaterMark: 1 })
+    it("should pause once the high watermark is crossed and resume once the low water mark is crossed", async function () {
+      const pause = spy()
+      const resume = spy()
+      const event = new EventEmitter()
+      const it = new EventIterator(
+        queue => {
+          queue.on("highWater", pause)
+          queue.on("lowWater", resume)
+          event.on("data", queue.push)
+        },
+        {highWaterMark: 2, lowWaterMark: 1},
+      )
 
-      const iter = it[Symbol.asyncIterator]();
+      const iter = it[Symbol.asyncIterator]()
 
-      assert.equal(pauseSpy.called, false);
-      assert.equal(resumeSpy.called, false);
+      assert.equal(pause.called, false)
+      assert.equal(resume.called, false)
 
-      event.emit('data', 'a');
+      event.emit("data", "a")
+      event.emit("data", "b")
 
-      assert.equal(pauseSpy.called, true);
-      assert.equal(resumeSpy.called, false);
+      assert.equal(pause.called, true)
+      assert.equal(resume.called, false)
 
-      // Consume the record in the queue to to trigger onFill
-      await iter.next();
+      // Consume the record in the queue to to trigger onDrain
+      await iter.next()
 
-      assert.equal(resumeSpy.called, true);
-
+      assert.equal(resume.called, true)
     })
   })
 })

@@ -16,6 +16,9 @@
   `RemoveHandler` should update their code to account for this asynchrony, or
   update their code to avoid hoisting these arguments.
 
+* Added support for pausing/resuming streams when the internal queue fills or
+  drains. (@KamalAman)
+
 * Bugfix to ensure correct behaviour when using `next()` instead of a `for
   await` loop. (@KamalAman)
 

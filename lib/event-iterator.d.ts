@@ -1,28 +1,22 @@
-export declare type PushCallback<T> = (res: T) => void;
-export declare type StopCallback<T> = () => void;
-export declare type FailCallback<T> = (err: Error) => void;
-export declare type OnDrainCallback<T> = () => void;
-export declare type OnFillCallback<T> = () => void;
-export declare type OnDrainSetter<T> = (fn: OnDrainCallback<T>) => void;
-export declare type OnFillSetter<T> = (fn: OnFillCallback<T>) => void;
-export interface EventQueue<T> {
-    push: PushCallback<T>;
-    stop: StopCallback<T>;
-    fail: FailCallback<T>;
-    onDrain: OnDrainSetter<T>;
-    onFill: OnFillSetter<T>;
-}
+export declare type QueueEvent = keyof EventHandlers;
 export declare type RemoveHandler = () => void;
-export declare type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler;
+export declare type ListenHandler<T> = (queue: Queue<T>) => void | RemoveHandler;
 export interface EventIteratorOptions {
-    highWaterMark?: number;
-    onDrain?: Function;
-    onFill?: Function;
+    highWaterMark: number | undefined;
+    lowWaterMark: number | undefined;
+}
+export interface Queue<T> {
+    push(value: T): void;
+    stop(): void;
+    fail(error: Error): void;
+    on<E extends QueueEvent>(event: E, fn: EventHandlers[E]): void;
+}
+interface EventHandlers {
+    highWater(): void;
+    lowWater(): void;
 }
 export declare class EventIterator<T> implements AsyncIterable<T> {
-    private listen;
-    private options;
-    constructor(listen: ListenHandler<T>, options?: EventIteratorOptions);
-    [Symbol.asyncIterator](): AsyncIterator<T>;
+    [Symbol.asyncIterator]: () => AsyncIterator<T>;
+    constructor(listen: ListenHandler<T>, { highWaterMark, lowWaterMark }?: Partial<EventIteratorOptions>);
 }
 export default EventIterator;

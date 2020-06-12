@@ -1,166 +1,165 @@
-export type PushCallback<T> = (res: T) => void
-export type StopCallback<T> = () => void
-export type FailCallback<T> = (err: Error) => void
-export type OnDrainCallback<T> = () => void
-export type OnFillCallback<T> = () => void
-export type OnDrainSetter<T> = (fn: OnDrainCallback<T>) => void
-export type OnFillSetter<T> = (fn: OnFillCallback<T>) => void
-
-export interface EventQueue<T> {
-  push: PushCallback<T>,
-  stop: StopCallback<T>,
-  fail: FailCallback<T>,
-  onDrain: OnDrainSetter<T>,
-  onFill: OnFillSetter<T>,
-}
+export type QueueEvent = keyof EventHandlers
 export type RemoveHandler = () => void
-export type ListenHandler<T> = (
-  eventQueue: EventQueue<T>,
-) => void | RemoveHandler
+export type ListenHandler<T> = (queue: Queue<T>) => void | RemoveHandler
 
 export interface EventIteratorOptions {
-  highWaterMark?: number,
-  onDrain?: Function,
-  onFill?: Function
+  highWaterMark: number | undefined
+  lowWaterMark: number | undefined
 }
 
-type AsyncResolver<T> = {
+export interface Queue<T> {
+  push(value: T): void
+  stop(): void
+  fail(error: Error): void
+
+  on<E extends QueueEvent>(event: E, fn: EventHandlers[E]): void
+}
+
+interface EventHandlers {
+  highWater(): void
+  lowWater(): void
+}
+
+interface AsyncResolver<T> {
   resolve: (res: IteratorResult<T>) => void
   reject: (err: Error) => void
 }
 
-type EventIteratorState = {
-  paused: Boolean
-}
+class EventQueue<T> {
+  highWaterMark: number | undefined
+  lowWaterMark: number | undefined
 
-type AsyncQueue<T> = Array<Promise<IteratorResult<T>>>
+  readonly pullQueue: Array<AsyncResolver<T>> = []
+  readonly pushQueue: Array<Promise<IteratorResult<T>>> = []
+  readonly eventHandlers: Partial<EventHandlers> = {}
 
-export class EventIterator<T> implements AsyncIterable<T> {
-  private listen: ListenHandler<T>
-  private options: EventIteratorOptions
+  isPaused = false
+  finalValue?: IteratorResult<T>
+  removeCallback?: RemoveHandler
 
-  constructor(listen: ListenHandler<T>, options: EventIteratorOptions = {}) {
-    this.listen = listen;
-
-    if (options.onDrain && !options.onFill) {
-      throw new Error('Cannot define onDrain without an onFill');
-    }
-
-    this.options = {
-      highWaterMark: 100,
-      ...options
-    };
-
-    Object.freeze(this);
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<T> {
-    let pullQueue: Array<AsyncResolver<T>> = []
-    const pushQueue: AsyncQueue<T> = []
-    const listen = this.listen
-    let remove: RemoveHandler = () => {}
-    let onDrain: OnDrainCallback<T>|null = null
-    let onFill: OnFillCallback<T>|null = null
-    let finaliser: IteratorResult<T>|null = null
-    let {highWaterMark} = this.options
-    let paused = false
-
-    const push: PushCallback<T> = (value: T) => {
-      const resolution = { value, done: false }
-      if (pullQueue.length) {
-        const placeholder = pullQueue.shift()
-        if (placeholder) placeholder.resolve(resolution)
-      } else {
-        pushQueue.push(Promise.resolve(resolution))
-        if (highWaterMark !== undefined) {
-          if (pushQueue.length >= highWaterMark) {
-            if (!onDrain && console) {
-              console.warn(`EventIterator queue reached ${pushQueue.length} items`)
-            } else if (onDrain && !paused) {
-              onDrain();
-              paused = true;
-            }
-          }
+  push(value: T): void {
+    const resolution = {value, done: false}
+    if (this.pullQueue.length) {
+      const placeholder = this.pullQueue.shift()
+      if (placeholder) placeholder.resolve(resolution)
+    } else {
+      this.pushQueue.push(Promise.resolve(resolution))
+      if (
+        this.highWaterMark !== undefined &&
+        this.pushQueue.length >= this.highWaterMark &&
+        !this.isPaused
+      ) {
+        this.isPaused = true
+        if (this.eventHandlers.highWater) {
+          this.eventHandlers.highWater()
+        } else if (console) {
+          console.warn(
+            `EventIterator queue reached ${this.pushQueue.length} items`,
+          )
         }
       }
     }
+  }
 
-    const stop: StopCallback<T> = () => {
-      Promise.resolve().then(() => {
-        remove()
+  stop(): void {
+    Promise.resolve().then(() => {
+      this.remove()
+      this.finalValue = {value: undefined, done: true}
 
-        finaliser = {value: undefined, done: true} as IteratorResult<T>
-        if (pullQueue.length) {
-          for (const placeholder of pullQueue) {
-            placeholder.resolve(finaliser)
-          }
-          pullQueue = []
-        } else {
-          pushQueue.push(Promise.resolve(finaliser))
+      if (this.pullQueue.length) {
+        for (const placeholder of this.pullQueue) {
+          placeholder.resolve(this.finalValue)
         }
-      })
-    }
+        this.pullQueue.length = 0
+      } else {
+        this.pushQueue.push(Promise.resolve(this.finalValue))
+      }
+    })
+  }
 
-    const fail: FailCallback<T> = (error: Error) => {
-      Promise.resolve().then(() => {
-        remove()
+  fail(error: Error): void {
+    Promise.resolve().then(() => {
+      this.remove()
 
-        if (pullQueue.length) {
-          for (const placeholder of pullQueue) {
-            placeholder.reject(error)
-          }
-
-          pullQueue = []
-        } else {
-          const rejection = Promise.reject(error)
-
-          /* Attach error handler to avoid leaking an unhandled promise rejection. */
-          rejection.catch(() => {})
-          pushQueue.push(rejection)
+      if (this.pullQueue.length) {
+        for (const placeholder of this.pullQueue) {
+          placeholder.reject(error)
         }
-      })
-    }
 
-    remove = listen({
-      push,
-      stop,
-      fail,
-      onDrain: (fn) => { onDrain = fn },
-      onFill: (fn) => { onFill = fn },
-    }) || remove
+        this.pullQueue.length = 0
+      } else {
+        const rejection = Promise.reject(error)
 
+        /* Attach error handler to avoid leaking an unhandled promise rejection. */
+        rejection.catch(() => {})
+        this.pushQueue.push(rejection)
+      }
+    })
+  }
+
+  remove() {
+    if (this.removeCallback) this.removeCallback()
+  }
+
+  [Symbol.asyncIterator](): AsyncIterator<T> {
     return {
       next: (value?: any) => {
-        if (finaliser) {
-          return Promise.resolve(finaliser)
-        } else if (pushQueue.length) {
-          const result = pushQueue.shift()!
+        if (this.finalValue) {
+          return Promise.resolve(this.finalValue)
+        } else if (this.pushQueue.length) {
+          const result = this.pushQueue.shift()!
 
           if (
-            highWaterMark !== undefined &&
-            onFill &&
-            paused &&
-            pushQueue.length < highWaterMark
+            this.lowWaterMark !== undefined &&
+            this.pushQueue.length <= this.lowWaterMark &&
+            this.isPaused
           ) {
-            onFill();
-            paused = false;
+            this.isPaused = false
+            if (this.eventHandlers.lowWater) {
+              this.eventHandlers.lowWater()
+            }
           }
 
-          return result;
+          return result
         } else {
           return new Promise((resolve, reject) => {
-            pullQueue.push({resolve, reject})
+            this.pullQueue.push({resolve, reject})
           })
         }
       },
 
-      return() {
-        remove()
-
-        finaliser = { value: undefined, done: true } as IteratorResult<T>
-        return Promise.resolve(finaliser)
+      return: () => {
+        this.remove()
+        this.finalValue = {value: undefined, done: true}
+        return Promise.resolve(this.finalValue)
       },
     }
+  }
+}
+
+export class EventIterator<T> implements AsyncIterable<T> {
+  [Symbol.asyncIterator]: () => AsyncIterator<T>
+
+  constructor(
+    listen: ListenHandler<T>,
+    {highWaterMark = 100, lowWaterMark = 1}: Partial<EventIteratorOptions> = {},
+  ) {
+    const queue = new EventQueue<T>()
+    queue.highWaterMark = highWaterMark
+    queue.lowWaterMark = lowWaterMark
+
+    queue.removeCallback =
+      listen({
+        push: (val: T) => queue.push(val),
+        stop: () => queue.stop(),
+        fail: (error: Error) => queue.fail(error),
+        on: (event: QueueEvent, fn: () => void) => {
+          queue.eventHandlers[event] = fn
+        },
+      }) || (() => {})
+
+    this[Symbol.asyncIterator] = () => queue[Symbol.asyncIterator]()
+    Object.freeze(this)
   }
 }
 

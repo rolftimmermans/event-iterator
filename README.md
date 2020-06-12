@@ -3,8 +3,8 @@
 ## Highlights
 
 `EventIterator` is a small module that greatly simplifies converting event
-emitters, event targets, and similar objects into EcmaScript async iterators
-(a TC39 stage 3 proposal). It works in browser and Node.js environments.
+emitters, event targets, and similar objects into EcmaScript async iterators. It
+works in browser and Node.js environments.
 
 As a bonus you get utility functions:
 
@@ -50,7 +50,7 @@ import {EventIterator} from "event-iterator"
 export function subscribe(event, options) {
   /* "this" refers to a DOM event target. */
   return new EventIterator(
-    ({ push }) => {
+    ({push}) => {
       this.addEventListener(event, push, options)
       return () => this.removeEventListener(event, push, options)
     }
@@ -67,14 +67,18 @@ import {EventIterator} from "event-iterator"
 export function stream() {
   /* "this" refers to a Node.js readable stream. */
   return new EventIterator(
-    ({ push, stop, fail }) => {
-      this.addListener("data", push)
-      this.addListener("close", stop)
-      this.addListener("error", fail)
+    queue => {
+      this.addListener("data", queue.push)
+      this.addListener("close", queue.stop)
+      this.addListener("error", queue.fail)
+
+      queue.on("highWater", () => this.pause())
+      queue.on("lowWater", () => this.resume())
+
       return () => {
-        this.removeListener("data", push)
-        this.removeListener("close", stop)
-        this.removeListener("error", fail)
+        this.removeListener("data", queue.push)
+        this.removeListener("close", queue.stop)
+        this.removeListener("error", queue.fail)
         this.destroy()
       }
     }
@@ -82,29 +86,33 @@ export function stream() {
 }
 ```
 
-### Pausing Streams
+### Backpressure
 
-If you cannot reasonably consume all emitted events with your
-async iterator; the internal `EventIterator` queue can fill up indefinitely.
+If you cannot reasonably consume all emitted events with your async iterator;
+the internal `EventIterator` queue can fill up indefinitely.
 
-A warning will be emitted when the queue reaches 100 items.
+A warning will be emitted when the queue reaches the high water mark (100 items
+by default).
 
+However, if you are able to control the event stream then you can listen to the
+`highWater`, and `lowWater` events to exert backpressure.
 
-However, if you are able to pause the event stream then use the `onDrain`, and `onFill` callbacks
-
-The limit can be changed or disabled by settings `highWaterMark` in the options of the  `EventIterator` constructor.
+When these events are emitted can be changed or disabled by setting
+`highWaterMark` and `lowWaterMark` in the options of the `EventIterator`
+constructor.
 
 ```js
-import { EventIterator } from "event-iterator"
+import {EventIterator} from "event-iterator"
+
 const eventIterator = new EventIterator(
-  ({push, onDrain, onFill}) => {
+  ({push, on}) => {
     const file = require("fs").createReadStream("example-file")
-    file.on('data', push)
-    onDrain(() => file.pause())
-    onFill(() => file.resume())
-    return () => file.removeListener('data', push)
+    file.on("data", push)
+    on("highWater", () => file.pause())
+    on("lowWater", () => file.resume())
+    return () => file.removeListener("data", push)
   },
-  { highWaterMark: 10 }
+  {highWaterMark: 10, lowWaterMark: 5}
 )
 ```
 
@@ -127,27 +135,24 @@ functions.
 Type definitions:
 
 ``` typescript
-export type PushCallback<T> = (res: T) => void
-export type StopCallback<T> = () => void
-export type FailCallback<T> = (err: Error) => void
-
-export interface EventQueue<T> {
-  push: PushCallback<T>,
-  stop: StopCallback<T>,
-  fail: FailCallback<T>
+export interface Queue<T> {
+  push(value: T): void
+  stop(): void
+  fail(error: Error): void
+  on(event: "highWater" | "lowWater", fn: () => void)
 }
+
 export type RemoveHandler = () => void
-export type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler
+export type ListenHandler<T> = (queue: Queue<T>) => void | RemoveHandler
 
 /* High water mark defaults to 100. Set to undefined to disable warnings. */
 interface EventIteratorOptions = {
-  highWatermark?: number,
-  onPause?: Function,
-  onResume?: Function
+  highWaterMark?: number,
+  lowWaterMark?: number,
 }
 
 class EventIterator<T> {
-    constructor(ListenHandler<T>, ?EventIteratorOptions)
+    constructor(ListenHandler<T>, options?: EventIteratorOptions)
 
     [Symbol.asyncIterator](): AsyncIterator<T>
 }
@@ -286,6 +291,7 @@ function stream() {
       this.addListener("data", push)
       this.addListener("end", stop)
       this.addListener("error", fail)
+
       return () => {
         this.removeListener("data", push)
         this.removeListener("end", stop)
@@ -311,27 +317,9 @@ integration code? Several reasons:
   * the events that you are interested in may have different names depending on your use case
   * you may want to specify custom behaviour when the iterator throws or returns early
 
-## Caveats
-
-Don't use this if you cannot reasonably consume all emitted events with your
-async iterator; the internal `EventIterator` queue will fill up indefinitely.
-A warning will be emitted when the queue reaches 100 items.
-
-One example is reading each line from a file with `stream()` and executing a
-HTTP request for every line. An HTTP request is typically much slower than
-reading a file. The `EventEmitter` queue will fill itself as quickly as it
-receives data from the file stream. This will work fine, but only if everything
-fits in memory before the async iterator throws or returns.
-
-The limit can be changed or disabled by settings `highWaterMark` in the options
-of the  `EventIterator` constructor.
-
-A next version may support an optional API to pause/resume if the queue becomes
-too long.
-
 ## Licensed under MIT license
 
-Copyright (c) 2017-2019 Rolf Timmermans
+Copyright (c) 2017-2020 Rolf Timmermans
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
