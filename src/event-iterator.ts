@@ -14,7 +14,9 @@ export interface EventQueue<T> {
   onFill: OnFillSetter<T>,
 }
 export type RemoveHandler = () => void
-export type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler
+export type ListenHandler<T> = (
+  eventQueue: EventQueue<T>,
+) => void | RemoveHandler
 
 export interface EventIteratorOptions {
   highWaterMark?: number,
@@ -66,7 +68,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
     const push: PushCallback<T> = (value: T) => {
       const resolution = { value, done: false }
       if (pullQueue.length) {
-        const placeholder = pullQueue.shift();
+        const placeholder = pullQueue.shift()
         if (placeholder) placeholder.resolve(resolution)
       } else {
         pushQueue.push(Promise.resolve(resolution))
@@ -90,7 +92,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
         finaliser = {value: undefined, done: true} as IteratorResult<T>
         if (pullQueue.length) {
           for (const placeholder of pullQueue) {
-            placeholder.resolve(finaliser);
+            placeholder.resolve(finaliser)
           }
           pullQueue = []
         } else {
@@ -105,7 +107,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
 
         if (pullQueue.length) {
           for (const placeholder of pullQueue) {
-            placeholder.reject(error);
+            placeholder.reject(error)
           }
 
           pullQueue = []
@@ -147,7 +149,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
           return result;
         } else {
           return new Promise((resolve, reject) => {
-            pullQueue.push({ resolve, reject })
+            pullQueue.push({resolve, reject})
           })
         }
       },

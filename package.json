@@ -26,14 +26,22 @@
     "@types/mocha": ">= 0",
     "@types/node": ">= 8.0",
     "@types/sinon": ">= 7.5.1",
+    "@typescript-eslint/eslint-plugin": "^3.2.0",
+    "@typescript-eslint/parser": "^3.2.0",
     "chai": ">= 4.1",
+    "eslint": "^7.2.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-prettier": "^3.1.3",
     "jsdom": ">= 11.0",
     "mocha": ">= 3.1",
+    "prettier": "^2.0.5",
     "ts-node": ">= 3.3",
     "typescript": ">= 3.3",
     "sinon": ">= 7.5.0"
   },
   "scripts": {
-    "test": "mocha test/*-test.ts && rm -rf lib && tsc"
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "fmt": "eslint --fix src/**/*.ts test/**/*.ts",
+    "test": "mocha --require ts-node/register test/*-test.ts && rm -rf lib && tsc"
   }
 }

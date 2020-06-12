@@ -2,8 +2,8 @@ import {JSDOM} from "jsdom"
 import {assert} from "chai"
 import {subscribe} from "../src/dom"
 
-describe("subscribe", function() {
-  it("should emit events", async function() {
+describe("subscribe", function () {
+  it("should emit events", async function () {
     const {window} = new JSDOM()
     const {document} = window
 
@@ -26,7 +26,7 @@ describe("subscribe", function() {
     const result = await promise
     assert.deepEqual(
       [anchor, anchor, anchor],
-      result.map(obj => obj.target)
+      result.map(obj => obj.target),
     )
   })
 })
