@@ -103,10 +103,10 @@ describe("event iterator", function () {
       let removeArgs = null
       const it = new EventIterator(({stop}) => {
         stop()
-        return (...args: never[]) => (removeArgs = args)
+        return (...args: any[]) => (removeArgs = args)
       })
       await new Promise(setImmediate)
-      await it[Symbol.asyncIterator]().return()
+      await it[Symbol.asyncIterator]().return!()
       assert.deepStrictEqual(removeArgs, [])
     })
 
@@ -115,7 +115,7 @@ describe("event iterator", function () {
       const it = new EventIterator(() => () => (removed += 1))
 
       await new Promise(setImmediate)
-      const result = await it[Symbol.asyncIterator]().return()
+      const result = await it[Symbol.asyncIterator]().return!()
       assert.deepEqual(result, {value: undefined, done: true})
       assert.equal(removed, 1)
     })
