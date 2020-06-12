@@ -14,7 +14,8 @@
 * Added support for pausing/resuming streams when the internal queue fills or
   drains by listening to the `highWater` and `lowWater` events. (@KamalAman)
 
-* Bugfix to continue yielding pending items after `stop()` has been called. (@KamalAman)
+* Bugfix to continue yielding pending items after `stop()` has been called.
+  (@KamalAman)
 
 * Bugfix to ensure correct behaviour when using `next()` instead of a `for
   await` loop. (@KamalAman)
