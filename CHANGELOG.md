@@ -1,4 +1,4 @@
-### 2.0.0 (unreleased)
+### 2.0.0
 * BREAKING: The `EventIterator` constructor now has an arity of 2 instead of 3.
   The second `RemoveHandler` argument has been removed. Consumers should update
   their code such that the `RemoveHandler` should be passed as a return value of
