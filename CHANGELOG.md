@@ -9,7 +9,7 @@
   3. The single argument is an `EventQueue` object which contains the `push`,
   `stop` and `fail` functions. Consumers should update their code such that the
   `ListenHandler` is only given one argument, which could be a destructured
-  object of `{ push, stop, fail }`. (@keithamus)
+  object of `{push, stop, fail}`. (@keithamus)
 
 * BREAKING: The `stop` and `fail` calls are now asynchronous. Consumers which
   hoisted these functions and expected them to synchronously call the
@@ -19,10 +19,14 @@
 * Added support for pausing/resuming streams when the internal queue fills or
   drains by listening to the `highWater` and `lowWater` events. (@KamalAman)
 
+* Bugfix to continue yielding pending items after `stop()` has been called. (@KamalAman)
+
 * Bugfix to ensure correct behaviour when using `next()` instead of a `for
   await` loop. (@KamalAman)
 
 * Bugfixes to follow the iterator spec more closely. (@keithamus)
+
+* Refactor internals.
 
 ### 1.2.0
 * Add options argument to constructor, allowing configuration of
