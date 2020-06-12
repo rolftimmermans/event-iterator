@@ -3,12 +3,14 @@ export type StopCallback<T> = () => void
 export type FailCallback<T> = (err: Error) => void
 
 export interface EventQueue<T> {
-  push: PushCallback<T>,
-  stop: StopCallback<T>,
+  push: PushCallback<T>
+  stop: StopCallback<T>
   fail: FailCallback<T>
 }
 export type RemoveHandler = () => void
-export type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler
+export type ListenHandler<T> = (
+  eventQueue: EventQueue<T>,
+) => void | RemoveHandler
 
 export interface EventIteratorOptions {
   highWaterMark?: number
@@ -36,17 +38,21 @@ export class EventIterator<T> implements AsyncIterable<T> {
     const pushQueue: AsyncQueue<T> = []
     const listen = this.listen
     let remove: RemoveHandler = () => {}
-    let finaliser: IteratorResult<T>|null = null
+    let finaliser: IteratorResult<T> | null = null
 
     const push: PushCallback<T> = (value: T) => {
       const resolution = {value, done: false}
       if (pullQueue.length) {
-        const placeholder = pullQueue.shift();
+        const placeholder = pullQueue.shift()
         if (placeholder) placeholder.resolve(resolution)
       } else {
         pushQueue.push(Promise.resolve(resolution))
         const {highWaterMark} = this.options
-        if (highWaterMark !== undefined && pushQueue.length >= highWaterMark && console) {
+        if (
+          highWaterMark !== undefined &&
+          pushQueue.length >= highWaterMark &&
+          console
+        ) {
           console.warn(`EventIterator queue reached ${pushQueue.length} items`)
         }
       }
@@ -59,7 +65,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
         finaliser = {value: undefined, done: true} as IteratorResult<T>
         if (pullQueue.length) {
           for (const placeholder of pullQueue) {
-            placeholder.resolve(finaliser);
+            placeholder.resolve(finaliser)
           }
           pullQueue = []
         } else {
@@ -74,7 +80,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
 
         if (pullQueue.length) {
           for (const placeholder of pullQueue) {
-            placeholder.reject(error);
+            placeholder.reject(error)
           }
 
           pullQueue = []
@@ -88,7 +94,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
       })
     }
 
-    remove = listen({ push, stop, fail }) || remove
+    remove = listen({push, stop, fail}) || remove
 
     return {
       next(value?: any) {
@@ -98,7 +104,7 @@ export class EventIterator<T> implements AsyncIterable<T> {
           return pushQueue.shift()!
         } else {
           return new Promise((resolve, reject) => {
-            pullQueue.push({ resolve, reject})
+            pullQueue.push({resolve, reject})
           })
         }
       },

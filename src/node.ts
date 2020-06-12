@@ -1,27 +1,27 @@
 import {Readable} from "stream"
 import {EventIterator, EventIteratorOptions} from "./event-iterator"
 
-export function stream(this: Readable, evOptions?: EventIteratorOptions) {
-  return new EventIterator<Buffer>(
-    ({ push, stop, fail }) => {
-      this.addListener("data", push)
-      this.addListener("end", stop)
-      this.addListener("error", fail)
-      return () => {
-        this.removeListener("data", push)
-        this.removeListener("end", stop)
-        this.removeListener("error", fail)
+export function stream(
+  this: Readable,
+  evOptions?: EventIteratorOptions,
+): EventIterator<Buffer> {
+  return new EventIterator<Buffer>(({push, stop, fail}) => {
+    this.addListener("data", push)
+    this.addListener("end", stop)
+    this.addListener("error", fail)
+    return () => {
+      this.removeListener("data", push)
+      this.removeListener("end", stop)
+      this.removeListener("error", fail)
 
-        /* We are no longer interested in any data; attempt to close the stream. */
-        if (this.destroy) {
-          this.destroy()
-        } else if (typeof (this as any).close == "function") {
-          (this as any).close()
-        }
+      /* We are no longer interested in any data; attempt to close the stream. */
+      if (this.destroy) {
+        this.destroy()
+      } else if (typeof (this as any).close == "function") {
+        ;(this as any).close()
       }
-    },
-    evOptions,
-  )
+    }
+  }, evOptions)
 }
 
 export {EventIterator}
