@@ -13,5 +13,5 @@ jobs:
         node-version: 12.x
 
     - run: yarn
-    - run: yarn lint
+    # - run: yarn lint
     - run: yarn test
