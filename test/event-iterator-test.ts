@@ -1,6 +1,7 @@
 import "./symbol-polyfill"
 
 import {assert} from "chai"
+import {spy} from "sinon"
 import {EventIterator} from "../src/event-iterator"
 import {EventEmitter} from "events"
 
@@ -223,6 +224,33 @@ describe("event iterator", function () {
         log.stderr.toString(),
         "EventIterator queue reached 1 items\n",
       )
+    })
+
+    it("should pause once the high watermark is crossed and resume once it is cleared", async function () {
+      const pauseSpy = spy();
+      const resumeSpy = spy();
+      const event = new EventEmitter();
+      const it = new EventIterator(({push, onDrain, onFill}) => {
+        onDrain(pauseSpy)
+        onFill(resumeSpy)
+        event.on("data", push)
+      }, { highWaterMark: 1 })
+
+      const iter = it[Symbol.asyncIterator]();
+
+      assert.equal(pauseSpy.called, false);
+      assert.equal(resumeSpy.called, false);
+
+      event.emit('data', 'a');
+
+      assert.equal(pauseSpy.called, true);
+      assert.equal(resumeSpy.called, false);
+
+      // Consume the record in the queue to to trigger onFill
+      await iter.next();
+
+      assert.equal(resumeSpy.called, true);
+
     })
   })
 })

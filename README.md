@@ -82,6 +82,33 @@ export function stream() {
 }
 ```
 
+### Pausing Streams
+
+If you cannot reasonably consume all emitted events with your
+async iterator; the internal `EventIterator` queue can fill up indefinitely.
+
+A warning will be emitted when the queue reaches 100 items.
+
+
+However, if you are able to pause the event stream then use the `onDrain`, and `onFill` callbacks
+
+The limit can be changed or disabled by settings `highWaterMark` in the options of the  `EventIterator` constructor.
+
+```js
+import { EventIterator } from "event-iterator"
+const eventIterator = new EventIterator(
+  ({push, onDrain, onFill}) => {
+    const file = require("fs").createReadStream("example-file")
+    file.on('data', push)
+    onDrain(() => file.pause())
+    onFill(() => file.resume())
+    return () => file.removeListener('data', push)
+  },
+  { highWaterMark: 10 }
+)
+```
+
+
 ## API specification
 
 Create a new event iterator with `new EventIterator(listen)`. This
@@ -113,7 +140,11 @@ export type RemoveHandler = () => void
 export type ListenHandler<T> = (eventQueue: EventQueue<T>) => void | RemoveHandler
 
 /* High water mark defaults to 100. Set to undefined to disable warnings. */
-interface EventIteratorOptions = {highWatermark?: number }
+interface EventIteratorOptions = {
+  highWatermark?: number,
+  onPause?: Function,
+  onResume?: Function
+}
 
 class EventIterator<T> {
     constructor(ListenHandler<T>, ?EventIteratorOptions)
