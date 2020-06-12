@@ -68,7 +68,7 @@ describe("event iterator", function () {
 
       try {
         await new Promise(setImmediate)
-        const result = await it[Symbol.asyncIterator]().next()
+        await it[Symbol.asyncIterator]().next()
         assert.fail()
       } catch (err) {
         assert.instanceOf(err, Error)
@@ -156,7 +156,7 @@ describe("event iterator", function () {
 
       try {
         await new Promise(setImmediate)
-        const result = await it[Symbol.asyncIterator]().next()
+        await it[Symbol.asyncIterator]().next()
         assert.fail()
       } catch (err) {
         assert.instanceOf(err, Error)
@@ -173,7 +173,7 @@ describe("event iterator", function () {
 
       try {
         await new Promise(setImmediate)
-        const result = await it[Symbol.asyncIterator]().next()
+        await it[Symbol.asyncIterator]().next()
         assert.fail()
       } catch (err) {
         assert.instanceOf(err, Error)
@@ -183,7 +183,7 @@ describe("event iterator", function () {
 
     it("should buffer iterator calls when the queue is empty", async function () {
       const event = new EventEmitter()
-      const it = new EventIterator(({push, stop, fail}) => {
+      const it = new EventIterator(({push}) => {
         event.on("data", push)
         return () => event.removeListener("data", push)
       })
@@ -254,6 +254,43 @@ describe("event iterator", function () {
       await iter.next()
 
       assert.equal(resume.called, true)
+    })
+  })
+
+  describe("when event emitter closes", () => {
+    it("should broadcast iterate over all events until the stream is closed", async () => {
+      const event = new EventEmitter()
+      const it = new EventIterator(({push, stop}) => {
+        event.on("data", push)
+        event.on("close", stop)
+
+        return () => {
+          event.removeListener("data", push)
+          event.removeListener("close", stop)
+        }
+      })
+
+      const iterator = it[Symbol.asyncIterator]()
+
+      event.emit("data", "a")
+      event.emit("data", "b")
+      event.emit("close")
+      event.emit("data", "c")
+
+      const requests = Promise.all([
+        iterator.next(),
+        iterator.next(),
+        iterator.next(),
+        iterator.next(),
+      ])
+
+      const result = await requests
+      assert.deepEqual(result, [
+        {value: "a", done: false},
+        {value: "b", done: false},
+        {value: undefined, done: true},
+        {value: undefined, done: true},
+      ])
     })
   })
 })

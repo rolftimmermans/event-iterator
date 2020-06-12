@@ -34,10 +34,12 @@ class EventQueue<T> {
   readonly eventHandlers: Partial<EventHandlers> = {}
 
   isPaused = false
-  finalValue?: IteratorResult<T>
+  isStopped = false
   removeCallback?: RemoveHandler
 
   push(value: T): void {
+    if (this.isStopped) return
+
     const resolution = {value, done: false}
     if (this.pullQueue.length) {
       const placeholder = this.pullQueue.shift()
@@ -62,53 +64,48 @@ class EventQueue<T> {
   }
 
   stop(): void {
-    Promise.resolve().then(() => {
-      this.remove()
-      this.finalValue = {value: undefined, done: true}
+    if (this.isStopped) return
+    this.isStopped = true
+    this.remove()
 
-      if (this.pullQueue.length) {
-        for (const placeholder of this.pullQueue) {
-          placeholder.resolve(this.finalValue)
-        }
-        this.pullQueue.length = 0
-      } else {
-        this.pushQueue.push(Promise.resolve(this.finalValue))
-      }
-    })
+    for (const placeholder of this.pullQueue) {
+      placeholder.resolve({value: undefined, done: true})
+    }
+
+    this.pullQueue.length = 0
   }
 
   fail(error: Error): void {
-    Promise.resolve().then(() => {
-      this.remove()
+    if (this.isStopped) return
+    this.isStopped = true
+    this.remove()
 
-      if (this.pullQueue.length) {
-        for (const placeholder of this.pullQueue) {
-          placeholder.reject(error)
-        }
-
-        this.pullQueue.length = 0
-      } else {
-        const rejection = Promise.reject(error)
-
-        /* Attach error handler to avoid leaking an unhandled promise rejection. */
-        rejection.catch(() => {})
-        this.pushQueue.push(rejection)
+    if (this.pullQueue.length) {
+      for (const placeholder of this.pullQueue) {
+        placeholder.reject(error)
       }
-    })
+
+      this.pullQueue.length = 0
+    } else {
+      const rejection = Promise.reject(error)
+
+      /* Attach error handler to avoid leaking an unhandled promise rejection. */
+      rejection.catch(() => {})
+      this.pushQueue.push(rejection)
+    }
   }
 
   remove() {
-    if (this.removeCallback) this.removeCallback()
+    Promise.resolve().then(() => {
+      if (this.removeCallback) this.removeCallback()
+    })
   }
 
   [Symbol.asyncIterator](): AsyncIterator<T> {
     return {
       next: (value?: any) => {
-        if (this.finalValue) {
-          return Promise.resolve(this.finalValue)
-        } else if (this.pushQueue.length) {
-          const result = this.pushQueue.shift()!
-
+        const result = this.pushQueue.shift()
+        if (result) {
           if (
             this.lowWaterMark !== undefined &&
             this.pushQueue.length <= this.lowWaterMark &&
@@ -121,6 +118,8 @@ class EventQueue<T> {
           }
 
           return result
+        } else if (this.isStopped) {
+          return Promise.resolve({value: undefined, done: true})
         } else {
           return new Promise((resolve, reject) => {
             this.pullQueue.push({resolve, reject})
@@ -129,9 +128,10 @@ class EventQueue<T> {
       },
 
       return: () => {
+        this.isStopped = true
+        this.pushQueue.length = 0
         this.remove()
-        this.finalValue = {value: undefined, done: true}
-        return Promise.resolve(this.finalValue)
+        return Promise.resolve({value: undefined, done: true})
       },
     }
   }
@@ -150,10 +150,13 @@ export class EventIterator<T> implements AsyncIterable<T> {
 
     queue.removeCallback =
       listen({
-        push: (val: T) => queue.push(val),
+        push: value => queue.push(value),
+
         stop: () => queue.stop(),
-        fail: (error: Error) => queue.fail(error),
-        on: (event: QueueEvent, fn: () => void) => {
+
+        fail: error => queue.fail(error),
+
+        on: (event, fn) => {
           queue.eventHandlers[event] = fn
         },
       }) || (() => {})
